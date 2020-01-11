@@ -1,38 +1,35 @@
 import boto3
 import psycopg2
-from config import config
+import sqlalchemy as db
+
+from config_real_states_db import config
+
+
+def connect():
+    params = config()
+    connect = psycopg2.connect(**params)
+    return connect
+
 
 def get_real_states_prices():
-    conn = None
-
-    real_states_prices_query = """
-                        SELECT price
-                        FROM real_states
-                        """
     real_states_prices = []
 
     try:
-        params = config()
         print('Connecting to the AWS RDS database...')
+        engine = db.create_engine('postgresql://', creator=connect)
+        connection = engine.connect()
+        metadata = db.MetaData()
+        real_states = db.Table('real_states', metadata, autoload=True,
+                               autoload_with=engine)
 
-        conn = psycopg2.connect(**params)
+        query = db.select([real_states.columns.price])
 
-        cur = conn.cursor()
+        result_proxy = connection.execute(query).fetchall()
 
-        print("Fetching data from database...")
-        cur.execute(real_states_prices_query)
-
-        rows = cur.fetchall()
-
-        for row in rows:
-            real_states_prices.append(row[0])
-
-        cur.close()
+        for row_proxy in result_proxy:
+            real_states_prices.append(row_proxy[0])
 
         return(real_states_prices)
 
     except(Exception, psycopg2.DatabaseError) as error:
         print(error)
-    finally:
-        if conn is not None:
-            conn.close()
